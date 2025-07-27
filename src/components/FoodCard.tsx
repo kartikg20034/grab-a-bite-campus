@@ -26,7 +26,6 @@ interface FoodCardProps {
 
 export const FoodCard = ({ item, onAddToCart, className }: FoodCardProps) => {
   const [quantity, setQuantity] = useState(0);
-  const [isFavorite, setIsFavorite] = useState(false);
 
   const handleAddToCart = () => {
     if (quantity > 0 && onAddToCart) {
@@ -44,140 +43,104 @@ export const FoodCard = ({ item, onAddToCart, className }: FoodCardProps) => {
 
   return (
     <Card className={cn(
-      "group relative overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-1",
+      "flex overflow-hidden transition-all duration-200 hover:shadow-md",
       !item.isAvailable && "opacity-60",
       className
     )}>
-      <div className="relative">
-        {/* Food Image */}
-        <div className="aspect-[4/3] overflow-hidden">
-          <img
-            src={item.image}
-            alt={item.name}
-            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-          />
-          {!item.isAvailable && (
-            <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-              <Badge variant="destructive" className="text-sm font-semibold">
-                Out of Stock
-              </Badge>
-            </div>
-          )}
-        </div>
-
-        {/* Favorite Button */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn(
-            "absolute top-2 right-2 h-8 w-8 rounded-full bg-white/80 backdrop-blur-sm hover:bg-white",
-            isFavorite && "text-red-500"
-          )}
-          onClick={() => setIsFavorite(!isFavorite)}
-        >
-          <Heart className={cn("h-4 w-4", isFavorite && "fill-current")} />
-        </Button>
-
-        {/* Veg/Non-veg Indicator */}
-        <div className="absolute top-2 left-2">
+      {/* Mobile Image */}
+      <div className="relative w-20 h-20 flex-shrink-0">
+        <img
+          src={item.image}
+          alt={item.name}
+          className="w-full h-full object-cover"
+        />
+        <div className="absolute top-1 left-1">
           <div className={cn(
-            "w-4 h-4 rounded border-2 flex items-center justify-center",
+            "w-3 h-3 rounded border flex items-center justify-center",
             item.isVeg ? "border-green-500" : "border-red-500"
           )}>
             <div className={cn(
-              "w-2 h-2 rounded",
+              "w-1.5 h-1.5 rounded",
               item.isVeg ? "bg-green-500" : "bg-red-500"
             )} />
           </div>
         </div>
       </div>
 
-      <CardContent className="p-4">
-        {/* Food Info */}
-        <div className="space-y-2 mb-4">
-          <div className="flex items-start justify-between gap-2">
-            <h3 className="font-semibold text-foreground line-clamp-1 group-hover:text-primary transition-colors">
+      <CardContent className="p-3 flex-1 flex flex-col justify-between">
+        <div className="space-y-1">
+          <div className="flex items-start justify-between">
+            <h3 className="font-medium text-sm text-foreground leading-tight line-clamp-1">
               {item.name}
             </h3>
-            <Badge variant="secondary" className="text-xs flex-shrink-0">
-              {item.category}
-            </Badge>
+            <div className="flex items-center gap-1 text-xs text-muted-foreground ml-2">
+              <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+              {item.rating}
+            </div>
           </div>
           
-          <p className="text-sm text-muted-foreground line-clamp-2">
-            {item.description}
-          </p>
-
-          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-            <div className="flex items-center gap-1">
-              <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-              <span>{item.rating}</span>
+          <div className="flex items-center justify-between">
+            <div className="text-base font-bold text-primary">
+              ₹{item.price}
             </div>
-            {item.prepTime && (
-              <span>{item.prepTime} mins</span>
-            )}
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              {item.prepTime && <span>{item.prepTime}m</span>}
+            </div>
           </div>
         </div>
-
-        {/* Price and Add to Cart */}
-        <div className="flex items-center justify-between">
-          <div className="font-bold text-lg text-primary">
-            ₹{item.price}
-          </div>
-
+        
+        <div className="flex items-center justify-between mt-2">
           {item.isAvailable ? (
-            <div className="flex items-center gap-2">
-              {quantity === 0 ? (
-                <Button 
-                  variant="food" 
-                  size="sm" 
-                  onClick={incrementQuantity}
-                  className="h-8 px-4"
+            quantity === 0 ? (
+              <Button 
+                variant="food" 
+                size="sm" 
+                onClick={incrementQuantity}
+                className="h-7 px-3 text-xs"
+              >
+                <Plus className="h-3 w-3 mr-1" />
+                Add
+              </Button>
+            ) : (
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-6 w-6 p-0"
+                  onClick={decrementQuantity}
                 >
-                  <Plus className="h-4 w-4 mr-1" />
-                  Add
+                  <Minus className="h-3 w-3" />
                 </Button>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={decrementQuantity}
-                  >
-                    <Minus className="h-3 w-3" />
-                  </Button>
-                  <span className="w-8 text-center font-semibold">
-                    {quantity}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={incrementQuantity}
-                  >
-                    <Plus className="h-3 w-3" />
-                  </Button>
-                </div>
-              )}
-            </div>
+                <span className="w-6 text-center text-sm font-medium">
+                  {quantity}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-6 w-6 p-0"
+                  onClick={incrementQuantity}
+                >
+                  <Plus className="h-3 w-3" />
+                </Button>
+              </div>
+            )
           ) : (
-            <Button variant="ghost" size="sm" disabled>
-              Unavailable
+            <Button variant="ghost" size="sm" disabled className="text-xs">
+              Out of Stock
+            </Button>
+          )}
+          
+          {quantity > 0 && (
+            <Button 
+              variant="food" 
+              size="sm"
+              className="h-7 text-xs ml-2"
+              onClick={handleAddToCart}
+            >
+              ₹{(item.price * quantity)}
             </Button>
           )}
         </div>
-
-        {/* Add to Cart Button (when quantity > 0) */}
-        {quantity > 0 && (
-          <Button 
-            variant="food" 
-            className="w-full mt-3 h-8"
-            onClick={handleAddToCart}
-          >
-            Add {quantity} to Cart • ₹{(item.price * quantity).toFixed(2)}
-          </Button>
-        )}
       </CardContent>
     </Card>
   );

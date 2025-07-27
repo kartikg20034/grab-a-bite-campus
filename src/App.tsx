@@ -7,6 +7,8 @@ import { Layout } from "./components/Layout";
 import LandingPage from "./pages/LandingPage";
 import Dashboard from "./pages/Dashboard";
 import AdminDashboard from "./pages/AdminDashboard";
+import MenuManagement from "./pages/MenuManagement";
+import Onboarding from "./pages/Onboarding";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -21,6 +23,9 @@ const App = () => (
           {/* Landing Page - No Layout */}
           <Route path="/" element={<LandingPage />} />
           
+          {/* Onboarding - No Layout */}
+          <Route path="/onboarding" element={<Onboarding />} />
+          
           {/* Student Routes with Layout */}
           <Route path="/" element={<Layout userType="student" />}>
             <Route path="dashboard" element={<Dashboard />} />
@@ -33,7 +38,7 @@ const App = () => (
           <Route path="/admin" element={<Layout userType="admin" />}>
             <Route index element={<AdminDashboard />} />
             <Route path="orders" element={<div className="p-8 text-center">Admin Orders Management coming soon...</div>} />
-            <Route path="menu" element={<div className="p-8 text-center">Menu Management coming soon...</div>} />
+            <Route path="menu" element={<MenuManagement />} />
             <Route path="students" element={<div className="p-8 text-center">Student Management coming soon...</div>} />
             <Route path="analytics" element={<div className="p-8 text-center">Analytics coming soon...</div>} />
             <Route path="inventory" element={<div className="p-8 text-center">Inventory Management coming soon...</div>} />
