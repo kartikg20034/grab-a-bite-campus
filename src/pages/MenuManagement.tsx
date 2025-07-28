@@ -19,53 +19,58 @@ import {
   AlertCircle
 } from "lucide-react";
 
-// Sample menu data (would come from API)
-const allMenuItems = [
-  {
-    id: "1",
-    name: "Butter Chicken",
-    category: "Main Course",
-    price: 180,
-    isVeg: false,
-    isActive: true,
-    availableSlots: ["lunch", "dinner"]
-  },
-  {
-    id: "2",
-    name: "Paneer Butter Masala", 
-    category: "Main Course",
-    price: 160,
-    isVeg: true,
-    isActive: true,
-    availableSlots: ["lunch", "dinner"]
-  },
-  {
-    id: "3",
-    name: "Masala Dosa",
-    category: "South Indian",
-    price: 80,
-    isVeg: true,
-    isActive: true,
-    availableSlots: ["breakfast", "lunch"]
-  },
-  {
-    id: "4",
-    name: "Idli Sambar",
-    category: "South Indian", 
-    price: 60,
-    isVeg: true,
-    isActive: false,
-    availableSlots: ["breakfast"]
-  },
-  {
-    id: "5",
-    name: "Chicken Biryani",
-    category: "Rice",
-    price: 200,
-    isVeg: false,
-    isActive: true,
-    availableSlots: ["lunch", "dinner"]
-  }
+// Comprehensive Indian menu items (admin can select from these)
+const allIndianMenuItems = [
+  // Main Course - North Indian
+  { id: "1", name: "Butter Chicken", category: "North Indian", price: 180, isVeg: false, isActive: true, availableSlots: ["lunch", "dinner"], description: "Tender chicken in rich tomato-butter gravy" },
+  { id: "2", name: "Paneer Butter Masala", category: "North Indian", price: 160, isVeg: true, isActive: true, availableSlots: ["lunch", "dinner"], description: "Cottage cheese in creamy tomato sauce" },
+  { id: "3", name: "Dal Makhani", category: "North Indian", price: 120, isVeg: true, isActive: true, availableSlots: ["lunch", "dinner"], description: "Creamy black lentil curry" },
+  { id: "4", name: "Chole Bhature", category: "North Indian", price: 100, isVeg: true, isActive: true, availableSlots: ["breakfast", "lunch"], description: "Spicy chickpeas with fried bread" },
+  { id: "5", name: "Rajma Rice", category: "North Indian", price: 130, isVeg: true, isActive: true, availableSlots: ["lunch", "dinner"], description: "Red kidney beans with steamed rice" },
+  { id: "6", name: "Aloo Paratha", category: "North Indian", price: 90, isVeg: true, isActive: true, availableSlots: ["breakfast", "lunch"], description: "Stuffed potato flatbread with curd" },
+  
+  // South Indian
+  { id: "7", name: "Masala Dosa", category: "South Indian", price: 80, isVeg: true, isActive: true, availableSlots: ["breakfast", "lunch"], description: "Crispy crepe with spiced potato filling" },
+  { id: "8", name: "Idli Sambar", category: "South Indian", price: 60, isVeg: true, isActive: true, availableSlots: ["breakfast"], description: "Steamed rice cakes with lentil curry" },
+  { id: "9", name: "Medu Vada", category: "South Indian", price: 70, isVeg: true, isActive: true, availableSlots: ["breakfast"], description: "Crispy lentil donuts with sambar" },
+  { id: "10", name: "Uttapam", category: "South Indian", price: 85, isVeg: true, isActive: true, availableSlots: ["breakfast", "lunch"], description: "Thick pancake with vegetables" },
+  { id: "11", name: "Rava Upma", category: "South Indian", price: 55, isVeg: true, isActive: true, availableSlots: ["breakfast"], description: "Semolina porridge with vegetables" },
+  
+  // Rice Dishes
+  { id: "12", name: "Chicken Biryani", category: "Rice", price: 200, isVeg: false, isActive: true, availableSlots: ["lunch", "dinner"], description: "Aromatic rice with tender chicken" },
+  { id: "13", name: "Mutton Biryani", category: "Rice", price: 250, isVeg: false, isActive: true, availableSlots: ["lunch", "dinner"], description: "Fragrant rice with succulent mutton" },
+  { id: "14", name: "Vegetable Biryani", category: "Rice", price: 150, isVeg: true, isActive: true, availableSlots: ["lunch", "dinner"], description: "Aromatic rice with mixed vegetables" },
+  { id: "15", name: "Jeera Rice", category: "Rice", price: 80, isVeg: true, isActive: true, availableSlots: ["lunch", "dinner"], description: "Cumin flavored basmati rice" },
+  { id: "16", name: "Curd Rice", category: "Rice", price: 70, isVeg: true, isActive: true, availableSlots: ["lunch", "dinner"], description: "Yogurt rice with tempered spices" },
+  
+  // Street Food
+  { id: "17", name: "Pav Bhaji", category: "Street Food", price: 100, isVeg: true, isActive: true, availableSlots: ["lunch", "evening"], description: "Spiced vegetable curry with bread" },
+  { id: "18", name: "Vada Pav", category: "Street Food", price: 40, isVeg: true, isActive: true, availableSlots: ["breakfast", "evening"], description: "Mumbai's favorite potato burger" },
+  { id: "19", name: "Bhel Puri", category: "Street Food", price: 60, isVeg: true, isActive: true, availableSlots: ["evening"], description: "Puffed rice with tangy chutneys" },
+  { id: "20", name: "Dahi Puri", category: "Street Food", price: 70, isVeg: true, isActive: true, availableSlots: ["evening"], description: "Crispy puris with yogurt and chutney" },
+  
+  // Snacks
+  { id: "21", name: "Samosa (2 pcs)", category: "Snacks", price: 40, isVeg: true, isActive: true, availableSlots: ["breakfast", "evening"], description: "Crispy pastry with spiced potato filling" },
+  { id: "22", name: "Kachori (2 pcs)", category: "Snacks", price: 45, isVeg: true, isActive: true, availableSlots: ["breakfast", "evening"], description: "Flaky pastry with lentil filling" },
+  { id: "23", name: "Bread Pakoda", category: "Snacks", price: 50, isVeg: true, isActive: true, availableSlots: ["evening"], description: "Bread fritters with green chutney" },
+  { id: "24", name: "Aloo Tikki", category: "Snacks", price: 60, isVeg: true, isActive: true, availableSlots: ["evening"], description: "Spiced potato patties with chutneys" },
+  
+  // Beverages
+  { id: "25", name: "Masala Chai", category: "Beverages", price: 25, isVeg: true, isActive: true, availableSlots: ["breakfast", "evening"], description: "Traditional spiced tea with milk" },
+  { id: "26", name: "Filter Coffee", category: "Beverages", price: 30, isVeg: true, isActive: true, availableSlots: ["breakfast", "evening"], description: "South Indian style coffee" },
+  { id: "27", name: "Lassi", category: "Beverages", price: 50, isVeg: true, isActive: true, availableSlots: ["lunch", "evening"], description: "Refreshing yogurt drink" },
+  { id: "28", name: "Fresh Lime Water", category: "Beverages", price: 35, isVeg: true, isActive: true, availableSlots: ["lunch", "evening"], description: "Refreshing lime juice with mint" },
+  
+  // Sweets
+  { id: "29", name: "Gulab Jamun (2 pcs)", category: "Sweets", price: 60, isVeg: true, isActive: true, availableSlots: ["lunch", "dinner"], description: "Soft milk dumplings in sugar syrup" },
+  { id: "30", name: "Jalebi", category: "Sweets", price: 80, isVeg: true, isActive: true, availableSlots: ["breakfast", "evening"], description: "Crispy spirals soaked in sugar syrup" },
+  { id: "31", name: "Rasgulla (2 pcs)", category: "Sweets", price: 50, isVeg: true, isActive: true, availableSlots: ["lunch", "dinner"], description: "Spongy cottage cheese balls in syrup" },
+  
+  // Tandoor
+  { id: "32", name: "Tandoori Chicken", category: "Tandoor", price: 220, isVeg: false, isActive: true, availableSlots: ["dinner"], description: "Clay oven roasted chicken with spices" },
+  { id: "33", name: "Naan", category: "Tandoor", price: 40, isVeg: true, isActive: true, availableSlots: ["lunch", "dinner"], description: "Soft leavened bread from tandoor" },
+  { id: "34", name: "Garlic Naan", category: "Tandoor", price: 50, isVeg: true, isActive: true, availableSlots: ["lunch", "dinner"], description: "Naan topped with garlic and herbs" },
+  { id: "35", name: "Tandoori Roti", category: "Tandoor", price: 25, isVeg: true, isActive: true, availableSlots: ["lunch", "dinner"], description: "Whole wheat bread from tandoor" }
 ];
 
 const mealSlots = [
@@ -76,7 +81,7 @@ const mealSlots = [
 ];
 
 export default function MenuManagement() {
-  const [menuItems, setMenuItems] = useState(allMenuItems);
+  const [menuItems, setMenuItems] = useState(allIndianMenuItems);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSlot, setSelectedSlot] = useState("breakfast");
   const [orderTimings, setOrderTimings] = useState({

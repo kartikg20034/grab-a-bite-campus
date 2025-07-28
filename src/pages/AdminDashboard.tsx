@@ -12,69 +12,87 @@ import {
   Package
 } from "lucide-react";
 
-const statsCards = [
-  {
-    title: "Total Orders Today",
-    value: "47",
-    change: "+12%",
-    icon: ShoppingBag,
-    color: "text-primary"
-  },
-  {
-    title: "Active Students",
-    value: "324",
-    change: "+5%",
-    icon: Users,
-    color: "text-secondary"
-  },
-  {
-    title: "Today's Revenue",
-    value: "₹8,240",
-    change: "+18%",
-    icon: DollarSign,
-    color: "text-success"
-  },
-  {
-    title: "Avg Order Time",
-    value: "12 mins",
-    change: "-2 mins",
-    icon: Clock,
-    color: "text-warning"
-  }
-];
+export default function AdminDashboard() {
+  // Get admin info from localStorage
+  const collegeId = localStorage.getItem('collegeId') || 'MIT-001';
+  const cafeteriaId = localStorage.getItem('cafeteriaId') || 'CAFE-MIT-A1';
+  
+  const statsCards = [
+    {
+      title: "Today's Orders",
+      value: "47",
+      change: "+12%",
+      icon: ShoppingBag,
+      color: "text-primary"
+    },
+    {
+      title: "Revenue Today",
+      value: "₹8,240",
+      change: "+18%",
+      icon: DollarSign,
+      color: "text-success"
+    },
+    {
+      title: "Active Students",
+      value: "324",
+      change: "+5%",
+      icon: Users,
+      color: "text-secondary"
+    },
+    {
+      title: "Kitchen Status",
+      value: "Open",
+      change: "Closes 9 PM",
+      icon: Clock,
+      color: "text-success"
+    }
+  ];
 
 const recentOrders = [
   {
     id: "#ORD-001",
-    student: "John Doe",
-    items: "Veggie Burger, Fries",
-    amount: "₹195",
+    student: "Rahul Sharma",
+    items: "Butter Chicken, Naan",
+    amount: "₹220",
     status: "ready",
-    time: "2 mins ago"
+    time: "2 mins ago",
+    pickup: "GAB-2453"
   },
   {
     id: "#ORD-002", 
-    student: "Sarah Smith",
-    items: "Caesar Salad, Juice",
-    amount: "₹135",
+    student: "Priya Patel",
+    items: "Masala Dosa, Filter Coffee",
+    amount: "₹110",
     status: "preparing",
-    time: "5 mins ago"
+    time: "5 mins ago",
+    pickup: "GAB-2454"
   },
   {
     id: "#ORD-003",
-    student: "Mike Johnson",
-    items: "Pasta, Garlic Bread",
-    amount: "₹180",
+    student: "Arun Kumar",
+    items: "Chicken Biryani, Raita",
+    amount: "₹220",
     status: "pending",
-    time: "8 mins ago"
+    time: "8 mins ago",
+    pickup: "GAB-2455"
   },
   {
     id: "#ORD-004",
-    student: "Emma Wilson",
-    items: "Sandwich, Coffee",
-    amount: "₹120",
+    student: "Sneha Reddy",
+    items: "Pav Bhaji, Lassi",
+    amount: "₹150",
     status: "completed",
-    time: "15 mins ago"
+    time: "15 mins ago",
+    pickup: "GAB-2452"
+  },
+  {
+    id: "#ORD-005",
+    student: "Vikram Singh",
+    items: "Chole Bhature, Chai",
+    amount: "₹125",
+    status: "ready",
+    time: "3 mins ago",
+    pickup: "GAB-2456"
   }
 ];
 
@@ -108,7 +126,6 @@ const getStatusIcon = (status: string) => {
   }
 };
 
-export default function AdminDashboard() {
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -118,7 +135,7 @@ export default function AdminDashboard() {
             Admin Dashboard
           </h1>
           <p className="text-muted-foreground">
-            Monitor orders, manage menu, and track performance
+            {cafeteriaId} • {collegeId} • Monitor orders, manage menu, and track performance
           </p>
         </div>
         <div className="flex gap-3">
@@ -188,8 +205,12 @@ export default function AdminDashboard() {
                       <div className="text-sm text-muted-foreground">
                         {order.student} • {order.items}
                       </div>
-                      <div className="text-xs text-muted-foreground">
-                        {order.time}
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>{order.time}</span>
+                        <span>•</span>
+                        <span className="font-mono bg-muted px-2 py-1 rounded">
+                          Pickup: {order.pickup}
+                        </span>
                       </div>
                     </div>
                   </div>
