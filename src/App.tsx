@@ -6,8 +6,17 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import LandingPage from "./pages/LandingPage";
 import Dashboard from "./pages/Dashboard";
+import Orders from "./pages/Orders";
+import Cart from "./pages/Cart";
+import Recommendations from "./pages/Recommendations";
 import AdminDashboard from "./pages/AdminDashboard";
+import AdminOrders from "./pages/AdminOrders";
 import MenuManagement from "./pages/MenuManagement";
+import StudentManagement from "./pages/StudentManagement";
+import Analytics from "./pages/Analytics";
+import Inventory from "./pages/Inventory";
+import MediaManagement from "./pages/MediaManagement";
+import Settings from "./pages/Settings";
 import Onboarding from "./pages/Onboarding";
 import NotFound from "./pages/NotFound";
 
@@ -29,21 +38,21 @@ const App = () => (
           {/* Student Routes with Layout */}
           <Route path="/" element={<Layout userType="student" />}>
             <Route path="dashboard" element={<Dashboard />} />
-            <Route path="orders" element={<div className="p-8 text-center">Orders page coming soon...</div>} />
-            <Route path="cart" element={<div className="p-8 text-center">Cart page coming soon...</div>} />
-            <Route path="recommendations" element={<div className="p-8 text-center">AI Recommendations coming soon...</div>} />
+            <Route path="orders" element={<Orders />} />
+            <Route path="cart" element={<Cart />} />
+            <Route path="recommendations" element={<Recommendations />} />
           </Route>
           
           {/* Admin Routes with Layout */}
           <Route path="/admin" element={<Layout userType="admin" />}>
             <Route index element={<AdminDashboard />} />
-            <Route path="orders" element={<div className="p-8 text-center">Admin Orders Management coming soon...</div>} />
+            <Route path="orders" element={<AdminOrders />} />
             <Route path="menu" element={<MenuManagement />} />
-            <Route path="students" element={<div className="p-8 text-center">Student Management coming soon...</div>} />
-            <Route path="analytics" element={<div className="p-8 text-center">Analytics coming soon...</div>} />
-            <Route path="inventory" element={<div className="p-8 text-center">Inventory Management coming soon...</div>} />
-            <Route path="media" element={<div className="p-8 text-center">Media Management coming soon...</div>} />
-            <Route path="settings" element={<div className="p-8 text-center">Settings coming soon...</div>} />
+            <Route path="students" element={<StudentManagement />} />
+            <Route path="analytics" element={<Analytics />} />
+            <Route path="inventory" element={<Inventory />} />
+            <Route path="media" element={<MediaManagement />} />
+            <Route path="settings" element={<Settings />} />
           </Route>
           
           {/* Catch-all route */}
