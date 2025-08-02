@@ -10,7 +10,7 @@ export default function Recommendations() {
 
   const recommendations = [
     {
-      id: 1,
+      id: "rec-1",
       name: "Masala Dosa",
       description: "Crispy fermented crepe with spiced potato filling",
       price: 60,
@@ -23,7 +23,7 @@ export default function Recommendations() {
       reason: "Based on your love for South Indian food"
     },
     {
-      id: 2,
+      id: "rec-2",
       name: "Paneer Butter Masala",
       description: "Rich and creamy paneer curry with aromatic spices",
       price: 140,
