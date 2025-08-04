@@ -11,8 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { GraduationCap, Coffee, ArrowRight, Building2, MapPin, Clock, Users, Phone, Mail, CreditCard } from "lucide-react";
 
 export default function Onboarding() {
-  const [searchParams] = useSearchParams();
-  const userType = searchParams.get('type') || 'student'; // student or admin
+  const userType = (localStorage.getItem('userRole') as 'student' | 'admin') || 'student';
   
   const [step, setStep] = useState(1);
   const [collegeId, setCollegeId] = useState("");
