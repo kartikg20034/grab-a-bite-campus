@@ -22,6 +22,8 @@ export default function Onboarding() {
 
   // Admin-specific form data
   const [adminData, setAdminData] = useState({
+    username: "",
+    password: "",
     cafeName: "",
     location: "",
     contactPhone: "",
@@ -184,7 +186,7 @@ export default function Onboarding() {
     );
   }
 
-  // Admin Step 2: Cafeteria ID Setup
+  // Admin Step 2: Cafeteria Login
   if (userType === 'admin' && step === 2) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-primary-glow/10 flex items-center justify-center p-4">
@@ -193,39 +195,72 @@ export default function Onboarding() {
             <div className="mx-auto w-16 h-16 bg-gradient-primary rounded-2xl flex items-center justify-center mb-2">
               <Coffee className="h-8 w-8 text-white" />
             </div>
-            <CardTitle className="text-2xl font-bold">Your Cafeteria ID</CardTitle>
+            <CardTitle className="text-2xl font-bold">Cafeteria Login</CardTitle>
             <p className="text-muted-foreground text-sm">
-              Enter the unique cafeteria ID provided by our platform
+              Enter your cafeteria credentials provided by the platform
             </p>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="cafeId" className="flex items-center gap-2">
-                <Coffee className="h-4 w-4" />
-                Cafeteria ID
-              </Label>
-              <Input
-                id="cafeId"
-                value={cafeteriaId}
-                onChange={(e) => setCafeteriaId(e.target.value)}
-                placeholder="CAFE-MIT-001 (example)"
-                className="h-12"
-              />
-              <p className="text-xs text-muted-foreground">
-                This ID was provided when you registered your cafeteria
-              </p>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="cafeId" className="flex items-center gap-2">
+                  <Coffee className="h-4 w-4" />
+                  Cafeteria ID
+                </Label>
+                <Input
+                  id="cafeId"
+                  value={cafeteriaId}
+                  onChange={(e) => setCafeteriaId(e.target.value)}
+                  placeholder="CAFE-MIT-001"
+                  className="h-12"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="username" className="flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  Username
+                </Label>
+                <Input
+                  id="username"
+                  value={adminData.username || ""}
+                  onChange={(e) => updateAdminData('username', e.target.value)}
+                  placeholder="Your cafeteria username"
+                  className="h-12"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="password" className="flex items-center gap-2">
+                  <CreditCard className="h-4 w-4" />
+                  Password
+                </Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={adminData.password || ""}
+                  onChange={(e) => updateAdminData('password', e.target.value)}
+                  placeholder="Your cafeteria password"
+                  className="h-12"
+                />
+              </div>
             </div>
+            
+            <p className="text-xs text-muted-foreground text-center">
+              These credentials were provided when you registered your cafeteria
+            </p>
+            
             <div className="flex gap-3">
               <Button variant="outline" onClick={() => setStep(1)} className="flex-1">
                 Back
               </Button>
               <Button 
                 onClick={handleAdminStep2Submit}
-                disabled={!cafeteriaId}
+                disabled={!cafeteriaId || !adminData.username || !adminData.password}
                 variant="food" 
                 className="flex-1"
               >
-                Continue <ArrowRight className="ml-2 h-4 w-4" />
+                Login <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </div>
           </CardContent>
