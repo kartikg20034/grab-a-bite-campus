@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/components/ui/use-toast";
 import { 
   UtensilsCrossed, 
   Clock, 
@@ -14,29 +15,160 @@ import {
   Shield,
   Zap,
   ArrowRight,
-  UserCog,
-  ShoppingBag
+  UserCog, // Kept for potential future use or if other icons are needed
+  ShoppingBag // Kept for potential future use or if other icons are needed
 } from "lucide-react";
 
 export default function LandingPage() {
   const [isLogin, setIsLogin] = useState(true);
-  const [showRoleSelection, setShowRoleSelection] = useState(false);
+  // Removed showRoleSelection state as roles are now defaulted for signup
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [name, setName] = useState(''); // State for user's name during signup
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const { toast } = useToast();
 
-  const handleAuth = () => {
-    // Mock authentication - in real app, this would handle Google OAuth
+  const API_BASE_URL = 'http://localhost:8080/api'; 
+
+  const handleAuth = async () => {
+    setIsLoading(true);
+    
     if (isLogin) {
-      navigate("/dashboard");
+      // Handle Login
+      try {
+        const response = await fetch(`${API_BASE_URL}/auth/login`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ email, password }),
+        });
+
+        if (response.ok) {
+          const userData = await response.json();
+          localStorage.setItem('user', JSON.stringify(userData));
+          // Store the password temporarily for onboarding's Basic Auth header construction
+          localStorage.setItem('signupPassword', password); 
+          
+          toast({
+            title: "Login Successful!",
+            description: `Welcome back, ${userData.name || userData.email}.`,
+            variant: "success",
+          });
+
+          // Conditional Redirection based on role and associated entities
+          if (userData.roles.includes('ADMIN')) {
+            if (!userData.college || !userData.cafeteria) {
+              // Admin needs to set up college and/or cafeteria
+              navigate("/onboarding"); // Redirect to the consolidated onboarding page
+            } else {
+              // Admin has both, proceed to dashboard
+              navigate("/admin");
+            }
+          } else if (userData.roles.includes('CAFETERIA_OWNER')) {
+            // Cafeteria owner flow - might also use /onboarding if not fully set up
+            if (!userData.college || !userData.cafeteria) {
+                navigate("/onboarding"); // Redirect to onboarding if not fully set up
+            } else {
+                localStorage.setItem('cafeteriaId', userData.cafeteria?.cafeteriaId || '');
+                navigate("/cafeteria-dashboard"); // Assuming you'll create this route later
+            }
+          } else { // Default to student dashboard for STUDENT/FACULTY roles
+            if (!userData.college || !userData.cafeteria) {
+                navigate("/onboarding"); // Redirect to onboarding if not fully set up
+            } else {
+                navigate("/dashboard"); 
+            }
+          }
+        } else if (response.status === 401) {
+          toast({
+            title: "Login Failed",
+            description: "Invalid email or password. Please try again.",
+            variant: "destructive",
+          });
+        } else {
+          const errorData = await response.json().catch(() => ({ message: "Unknown error" }));
+          toast({
+            title: "Login Failed",
+            description: `An error occurred: ${errorData.message || response.statusText}`,
+            variant: "destructive",
+          });
+        }
+      } catch (error) {
+        console.error("Login API call error:", error);
+        toast({
+          title: "Network Error",
+          description: "Could not connect to the server. Please check your internet connection.",
+          variant: "destructive",
+        });
+      }
     } else {
-      setShowRoleSelection(true);
+      // Handle Signup (New Account Creation) - Always defaults to STUDENT
+      if (password !== confirmPassword) {
+        toast({
+          title: "Signup Failed",
+          description: "Passwords do not match.",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return;
+      }
+      
+      try {
+        // Call the /api/onboarding endpoint to register as a STUDENT
+        const response = await fetch(`${API_BASE_URL}/onboarding`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            name: name, 
+            email: email, 
+            password: password, // Send password for direct registration
+            role: "STUDENT" // Explicitly set role to STUDENT
+          }),
+        });
+
+        if (response.ok) {
+          const userData = await response.json();
+          // Store the user data, but don't automatically log them in.
+          // They should explicitly log in with their new credentials.
+          localStorage.setItem('user', JSON.stringify(userData)); 
+          localStorage.setItem('signupPassword', password); // Store password for subsequent onboarding steps if needed
+
+          toast({
+            title: "Account Created!",
+            description: "Your student account has been created. Please log in.",
+            variant: "success",
+          });
+          setIsLogin(true); // Switch to login view
+          setEmail(email); // Pre-fill email for login
+          setPassword(''); // Clear password field
+          setConfirmPassword('');
+          setName('');
+        } else {
+          const errorData = await response.json().catch(() => ({ message: "Unknown error" }));
+          toast({
+            title: "Registration Failed",
+            description: `Error: ${errorData.message || response.statusText}`,
+            variant: "destructive",
+          });
+        }
+      } catch (error) {
+        console.error("Registration API call error:", error);
+        toast({
+          title: "Network Error",
+          description: "Could not complete registration. Please check your internet connection.",
+          variant: "destructive",
+        });
+      }
     }
+    setIsLoading(false);
   };
 
-  const handleRoleSelection = (role: 'admin' | 'student') => {
-    // Store role and navigate to onboarding
-    localStorage.setItem('userRole', role);
-    navigate("/onboarding");
-  };
+  // Removed handleRoleSelection as it's no longer needed for signup flow
 
   const features = [
     {
@@ -159,8 +291,8 @@ export default function LandingPage() {
 
           {/* Auth Section */}
           <div className="flex justify-center">
-            {!showRoleSelection ? (
-              <Card className="w-full max-w-md shadow-xl border-0 bg-card/80 backdrop-blur-sm">
+            {/* Simplified Auth Card - Removed Role Selection */}
+            <Card className="w-full max-w-md shadow-xl border-0 bg-card/80 backdrop-blur-sm">
                 <CardHeader className="text-center space-y-4">
                   <div className="w-16 h-16 bg-gradient-to-br from-primary to-primary-glow rounded-2xl flex items-center justify-center mx-auto shadow-lg">
                     <UtensilsCrossed className="h-8 w-8 text-white" />
@@ -172,13 +304,28 @@ export default function LandingPage() {
                     <CardDescription className="text-base">
                       {isLogin 
                         ? "Sign in to your account to start ordering" 
-                        : "Create your account to get started"
+                        : "Create your student account to get started" // Updated description
                       }
                     </CardDescription>
                   </div>
                 </CardHeader>
                 
                 <CardContent className="space-y-6">
+                  {!isLogin && ( // Name field for signup
+                    <div className="space-y-2">
+                      <Label htmlFor="name" className="text-sm font-medium">
+                        Your Full Name
+                      </Label>
+                      <Input 
+                        id="name"
+                        type="text" 
+                        placeholder="John Doe"
+                        className="h-11"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                      />
+                    </div>
+                  )}
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="email" className="text-sm font-medium">
@@ -189,6 +336,8 @@ export default function LandingPage() {
                         type="email" 
                         placeholder="john.doe@college.edu"
                         className="h-11"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
                       />
                     </div>
                     
@@ -201,6 +350,8 @@ export default function LandingPage() {
                         type="password" 
                         placeholder="Enter your password"
                         className="h-11"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
                       />
                     </div>
 
@@ -214,6 +365,8 @@ export default function LandingPage() {
                           type="password" 
                           placeholder="Confirm your password"
                           className="h-11"
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
                         />
                       </div>
                     )}
@@ -223,8 +376,9 @@ export default function LandingPage() {
                     onClick={handleAuth}
                     className="w-full h-11 text-base font-semibold"
                     variant="food"
+                    disabled={isLoading || (!isLogin && (!name || !email || !password || !confirmPassword || password !== confirmPassword))}
                   >
-                    {isLogin ? "Sign In" : "Create Account"}
+                    {isLoading ? "Processing..." : (isLogin ? "Sign In" : "Create Student Account")}
                   </Button>
 
                   <div className="relative">
@@ -241,7 +395,8 @@ export default function LandingPage() {
                   <Button 
                     variant="outline" 
                     className="w-full h-11 gap-3"
-                    onClick={handleAuth}
+                    onClick={() => toast({ title: "Google Sign-in", description: "Google sign-in is not yet implemented.", variant: "info" })} // Placeholder for Google Sign-in
+                    disabled={isLoading}
                   >
                     <svg className="h-5 w-5" viewBox="0 0 24 24">
                       <path fill="#4285f4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -265,62 +420,6 @@ export default function LandingPage() {
                   </div>
                 </CardContent>
               </Card>
-            ) : (
-              <Card className="w-full max-w-md shadow-xl border-0 bg-card/80 backdrop-blur-sm">
-                <CardHeader className="text-center space-y-4">
-                  <div className="w-16 h-16 bg-gradient-to-br from-primary to-primary-glow rounded-2xl flex items-center justify-center mx-auto shadow-lg">
-                    <UtensilsCrossed className="h-8 w-8 text-white" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-2xl">
-                      Choose Your Role
-                    </CardTitle>
-                    <CardDescription className="text-base">
-                      Are you a cafeteria admin or want to place an order?
-                    </CardDescription>
-                  </div>
-                </CardHeader>
-                
-                <CardContent className="space-y-4">
-                  <Button 
-                    onClick={() => handleRoleSelection('student')}
-                    className="w-full h-16 text-left justify-start gap-4"
-                    variant="outline"
-                  >
-                    <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                      <ShoppingBag className="h-6 w-6 text-primary" />
-                    </div>
-                    <div>
-                      <div className="font-semibold text-foreground">Want to Place Order</div>
-                      <div className="text-sm text-muted-foreground">Browse menu and order food</div>
-                    </div>
-                  </Button>
-
-                  <Button 
-                    onClick={() => handleRoleSelection('admin')}
-                    className="w-full h-16 text-left justify-start gap-4"
-                    variant="outline"
-                  >
-                    <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                      <UserCog className="h-6 w-6 text-primary" />
-                    </div>
-                    <div>
-                      <div className="font-semibold text-foreground">Cafeteria Admin</div>
-                      <div className="text-sm text-muted-foreground">Manage menu and orders</div>
-                    </div>
-                  </Button>
-
-                  <div className="text-center pt-4">
-                    <button
-                      onClick={() => setShowRoleSelection(false)}
-                      className="text-sm text-primary hover:underline font-medium"
-                    >
-                      Back to sign up
-                    </button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
           </div>
         </div>
       </div>

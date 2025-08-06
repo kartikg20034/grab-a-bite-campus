@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,117 +8,578 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { GraduationCap, Coffee, ArrowRight, Building2, MapPin, Clock, Users, Phone, Mail, CreditCard } from "lucide-react";
+import { GraduationCap, Coffee, ArrowRight, Building2, Search, PlusCircle, MapPin, Clock, Users, Phone, Mail, CreditCard } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
+
+// Define interfaces for data structures
+interface College {
+  collegeId: string;
+  collegeName: string;
+  address: string;
+}
+
+interface Cafeteria {
+  cafeteriaId: string;
+  name: string;
+  location: string;
+  isOpen: boolean;
+  // Add college details if your backend returns it nested, e.g.:
+  // college: { collegeId: string; collegeName: string; };
+}
+
+// User data structure (matching UserResponse DTO from backend)
+interface UserData {
+  id: string;
+  email: string;
+  name?: string;
+  roles: string[];
+  collegeId?: string; // Now directly available from DTO
+  collegeName?: string; // Now directly available from DTO
+  cafeteriaId?: string; // Now directly available from DTO
+  cafeteriaName?: string; // Now directly available from DTO
+  password?: string; // Temporarily stored for Basic Auth header construction
+}
 
 export default function Onboarding() {
-  const userType = (localStorage.getItem('userRole') as 'student' | 'admin') || 'student';
+  // Get user info and type from localStorage ONCE during initial state setup
+  const [user, setUser] = useState<UserData | null>(() => {
+    const storedUser = localStorage.getItem('user');
+    return storedUser ? JSON.parse(storedUser) : null;
+  });
   
+  // New state to track if user data has been fully initialized from backend
+  const [isUserInitialized, setIsUserInitialized] = useState(false);
+
+  // Determine user's specific role type for frontend logic
+  let currentUserRoleType: 'admin' | 'cafeteria_owner' | 'student' = 'student';
+  if (user?.roles.includes('ADMIN')) {
+    currentUserRoleType = 'admin';
+  } else if (user?.roles.includes('CAFETERIA_OWNER')) {
+    currentUserRoleType = 'cafeteria_owner';
+  }
+
   const [step, setStep] = useState(1);
-  const [collegeId, setCollegeId] = useState("");
-  const [cafeteriaId, setCafeteriaId] = useState("");
-  const [selectedCafe, setSelectedCafe] = useState<any>(null);
+  const [collegeIdInput, setCollegeIdInput] = useState("");
+  const [newCollegeName, setNewCollegeName] = useState("");
+  const [newCollegeAddress, setNewCollegeAddress] = useState("");
+  const [existingColleges, setExistingColleges] = useState<College[]>([]);
+  const [isFetchingColleges, setIsFetchingColleges] = useState(true);
+
+  const [cafeteriaIdInput, setCafeteriaIdInput] = useState("");
+  const [newCafeteriaName, setNewCafeteriaName] = useState("");
+  const [newCafeteriaLocation, setNewCafeteriaLocation] = useState("");
+  const [newCafeteriaIsOpen, setNewCafeteriaIsOpen] = useState(true);
+  const [existingCafeterias, setExistingCafeterias] = useState<Cafeteria[]>([]);
+  const [isFetchingCafeterias, setIsFetchingCafeterias] = useState(true);
+  const [selectedCafeteria, setSelectedCafeteria] = useState<Cafeteria | null>(null);
+
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const { toast } = useToast();
 
-  // Admin-specific form data
-  const [adminData, setAdminData] = useState({
-    username: "",
-    password: "",
-    cafeName: "",
-    location: "",
-    contactPhone: "",
-    contactEmail: "",
-    operatingHours: {
-      openTime: "07:00",
-      closeTime: "21:00",
-      isOpen24x7: false
-    },
-    capacity: "",
-    cuisine: "",
-    description: "",
-    acceptsOnlinePayments: true,
-    preparationTime: "15"
-  });
+  const API_BASE_URL = 'http://localhost:8080/api';
 
-  const handleCollegeSubmit = () => {
-    if (!collegeId) return;
-    if (userType === 'admin') {
-      setStep(2);
-    } else {
-      setStep(2);
+  // Function to get Basic Auth header from localStorage user data
+  // This useCallback now has no dependencies, making it stable and preventing re-creation
+  const getAuthHeader = useCallback(() => {
+    const storedUser = localStorage.getItem('user');
+    const parsedUser = storedUser ? JSON.parse(storedUser) : null;
+    const storedEmail = parsedUser?.email;
+    // IMPORTANT: Storing password in localStorage is not secure for production.
+    // This is for demonstration with Basic Auth. In production, use JWTs or OAuth tokens.
+    const storedPassword = localStorage.getItem('signupPassword') || parsedUser?.password; 
+
+    if (storedEmail && storedPassword) {
+      const credentials = btoa(`${storedEmail}:${storedPassword}`); 
+      return `Basic ${credentials}`;
     }
-  };
+    return '';
+  }, []); // No dependencies: reads directly from localStorage, ensuring stability
 
-  const handleAdminStep2Submit = () => {
-    if (!cafeteriaId) return;
-    setStep(3);
-  };
 
-  const handleAdminStep3Submit = () => {
-    if (!adminData.cafeName || !adminData.location) return;
-    setStep(4);
-  };
+  // Function to fetch the most up-to-date user details from the backend
+  // This useCallback now depends on user?.id and the stable getAuthHeader
+  const fetchCurrentUserDetails = useCallback(async () => {
+    const authHeader = getAuthHeader(); // Get the stable auth header
+    if (!user?.id || !authHeader) {
+      // If user ID or auth header is missing, we can't fetch.
+      // Mark as initialized to prevent infinite loops if user is truly not logged in.
+      setIsUserInitialized(true); 
+      return;
+    }
 
-  const handleCafeSelect = (cafe: any) => {
-    setSelectedCafe(cafe);
-    setCafeteriaId(cafe.id);
-  };
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/${user.id}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': authHeader, // Use the stable authHeader
+        },
+      });
 
-  const updateAdminData = (field: string, value: any) => {
-    setAdminData(prev => ({ ...prev, [field]: value }));
-  };
+      if (response.ok) {
+        const updatedUser: UserData = await response.json();
+        localStorage.setItem('user', JSON.stringify(updatedUser)); // Update localStorage
+        setUser(updatedUser); // Update user state with fresh data
+        console.log("Fetched current user details:", updatedUser);
+      } else {
+        console.error("Failed to fetch current user details:", response.status, response.statusText);
+        toast({
+          title: "Failed to load user data",
+          description: `Error: ${response.status} ${response.statusText}. Please try logging in again.`,
+          variant: "destructive",
+        });
+        navigate("/"); // Redirect to login if user data can't be fetched
+      }
+    } catch (error) {
+      console.error("Network error fetching current user details:", error);
+      toast({
+        title: "Network Error",
+        description: "Could not fetch your user data. Please check your connection.",
+        variant: "destructive",
+      });
+      navigate("/"); // Redirect to login on network error
+    } finally {
+        setIsUserInitialized(true); // Mark user as initialized regardless of fetch success/failure to prevent loop
+    }
+  }, [user?.id, navigate, toast, getAuthHeader]); // Dependencies: user.id (if user changes), navigate, toast, and the stable getAuthHeader
 
-  const updateOperatingHours = (field: string, value: any) => {
-    setAdminData(prev => ({
-      ...prev,
-      operatingHours: { ...prev.operatingHours, [field]: value }
-    }));
-  };
 
-  const handleFinalSubmit = async () => {
-    if (userType === 'admin' && (!collegeId || !cafeteriaId || !adminData.cafeName)) return;
-    if (userType === 'student' && (!collegeId || !selectedCafe)) return;
-    
+  const fetchExistingColleges = useCallback(async () => {
+    setIsFetchingColleges(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/colleges`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': getAuthHeader(),
+        },
+      });
+
+      if (response.ok) {
+        const data: College[] = await response.json();
+        setExistingColleges(data);
+      } else {
+        toast({
+          title: "Failed to load colleges",
+          description: `Error: ${response.status} ${response.statusText}`,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching colleges:", error);
+      toast({
+        title: "Network Error",
+        description: "Could not fetch existing colleges. Please check your connection.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsFetchingColleges(false);
+    }
+  }, [getAuthHeader, toast]);
+
+
+  const fetchExistingCafeterias = useCallback(async (collegeId: string) => {
+    setIsFetchingCafeterias(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/cafeterias?collegeId=${collegeId}`, { // Filter by collegeId
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': getAuthHeader(),
+        },
+      });
+
+      if (response.ok) {
+        const data: Cafeteria[] = await response.json();
+        setExistingCafeterias(data);
+      } else {
+        toast({
+          title: "Failed to load cafeterias",
+          description: `Error: ${response.status} ${response.statusText}`,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching cafeterias:", error);
+      toast({
+        title: "Network Error",
+        description: "Could not fetch existing cafeterias. Please check your connection.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsFetchingCafeterias(false);
+    }
+  }, [getAuthHeader, toast]);
+
+
+  // --- Effects for fetching data and initial step determination ---
+  // Main useEffect for user initialization and step determination
+  useEffect(() => {
+    if (!user || !user.id || !user.email || !user.roles || user.roles.length === 0) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in or sign up to continue.",
+        variant: "destructive",
+      });
+      navigate("/");
+      return;
+    }
+
+    // Only fetch current user details if not yet initialized
+    if (!isUserInitialized) {
+        console.log("User not initialized, fetching details...");
+        fetchCurrentUserDetails();
+        return; // Do not proceed with step determination until user is initialized
+    }
+
+    // Determine initial step based on user's existing associations and role
+    // This logic runs only after isUserInitialized is true
+    console.log("User initialized. Determining step. User:", user);
+    if (currentUserRoleType === 'admin') {
+      if (user.collegeId && user.cafeteriaId) {
+        console.log("Admin: College and Cafeteria set. Navigating to /admin.");
+        navigate("/admin"); // Fully set up, go to Admin dashboard
+      } else if (user.collegeId) {
+        console.log("Admin: College set, proceeding to step 2 (Cafeteria setup).");
+        setStep(2); // College set, proceed to cafeteria setup
+      } else {
+        console.log("Admin: Starting with step 1 (College setup).");
+        setStep(1); // Start with college setup
+      }
+    } else if (currentUserRoleType === 'cafeteria_owner') {
+      if (user.collegeId && user.cafeteriaId) {
+        console.log("Cafeteria Owner: College and Cafeteria set. Navigating to /cafeteria-dashboard.");
+        navigate("/cafeteria-dashboard"); // Assuming this route exists for cafeteria owners
+      } else if (user.collegeId) {
+        console.log("Cafeteria Owner: College set, proceeding to step 2 (Cafeteria selection/linking).");
+        setStep(2); // College set, proceed to cafeteria selection/linking
+      } else {
+        console.log("Cafeteria Owner: Starting with step 1 (College selection/linking).");
+        setStep(1); // Start with college selection/linking
+      }
+    } else { // Student
+      if (user.collegeId && user.cafeteriaId) {
+        console.log("Student: College and Cafeteria set. Navigating to /dashboard.");
+        navigate("/dashboard"); // Fully set up, go to Student dashboard
+      } else if (user.collegeId) {
+        console.log("Student: College set, proceeding to step 2 (Cafeteria selection).");
+        setStep(2); // College set, proceed to cafeteria selection
+      } else {
+        console.log("Student: Starting with step 1 (College selection).");
+        setStep(1); // Start with college selection
+      }
+    }
+  }, [user, currentUserRoleType, navigate, toast, isUserInitialized, fetchCurrentUserDetails]);
+
+
+  // Fetch existing colleges when step 1 is active
+  useEffect(() => {
+    if (step === 1 && user && isUserInitialized) { // Only fetch if user is initialized
+      console.log("Step 1 active, fetching colleges with 3s delay...");
+      const timer = setTimeout(() => { // Add 3-second delay
+        fetchExistingColleges();
+      }, 3000);
+      return () => clearTimeout(timer); // Cleanup timeout to prevent memory leaks
+    }
+  }, [step, user, isUserInitialized, fetchExistingColleges]);
+
+  // Fetch existing cafeterias when step 2 is active for admin or student
+  useEffect(() => {
+    if (step === 2 && user?.collegeId && isUserInitialized) { // Only fetch if user is initialized and collegeId is present
+      console.log("Step 2 active, fetching cafeterias with 3s delay...");
+      const timer = setTimeout(() => { // Add 3-second delay
+        fetchExistingCafeterias(user.collegeId);
+      }, 3000);
+      return () => clearTimeout(timer); // Cleanup timeout
+    }
+  }, [step, user?.collegeId, isUserInitialized, fetchExistingCafeterias]);
+
+
+  // --- Handlers for form submissions ---
+
+  // Handle College Setup (Step 1 for all roles)
+  const handleCollegeSubmit = async () => {
     setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Store in localStorage for demo
-    localStorage.setItem('collegeId', collegeId);
-    localStorage.setItem('cafeteriaId', selectedCafe?.id || cafeteriaId);
-    localStorage.setItem('userType', userType);
-    if (userType === 'admin') {
-      localStorage.setItem('adminData', JSON.stringify(adminData));
+    let targetCollegeId = collegeIdInput;
+    let collegeToAssociate: College | undefined;
+
+    try {
+      if (currentUserRoleType === 'admin' && newCollegeName && newCollegeAddress) {
+        // ADMIN can create new college
+        const response = await fetch(`${API_BASE_URL}/colleges`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': getAuthHeader(),
+          },
+          body: JSON.stringify({ collegeName: newCollegeName, address: newCollegeAddress }),
+        });
+
+        if (response.ok) {
+          collegeToAssociate = await response.json();
+          targetCollegeId = collegeToAssociate.collegeId;
+          toast({
+            title: "College Created!",
+            description: `${collegeToAssociate.collegeName} has been added.`,
+            variant: "success",
+          });
+        } else {
+          const errorData = await response.json().catch(() => ({ message: "Unknown error" }));
+          toast({
+            title: "Failed to Create College",
+            description: `Error: ${errorData.message || response.statusText}`,
+            variant: "destructive",
+          });
+          setIsLoading(false);
+          return;
+        }
+      } else if (collegeIdInput) {
+        // All roles (including ADMIN if not creating new) can select existing college
+        const selected = existingColleges.find(c => c.collegeId === collegeIdInput);
+        if (!selected) {
+          toast({
+            title: "Invalid College ID",
+            description: "Please enter a valid existing college ID or select from the list.",
+            variant: "destructive",
+          });
+          setIsLoading(false);
+          return;
+        }
+        collegeToAssociate = selected;
+        targetCollegeId = collegeToAssociate.collegeId;
+      } else {
+        toast({
+          title: "Missing Information",
+          description: "Please select a college or provide details to create a new one (Admin only).",
+          variant: "warning",
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      // Link user to the selected/created college
+      if (user && targetCollegeId) {
+        const response = await fetch(`${API_BASE_URL}/users/${user.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': getAuthHeader(),
+          },
+          body: JSON.stringify({ college: { collegeId: targetCollegeId } }),
+        });
+
+        if (response.ok) {
+          // After a successful PUT, refetch the user's details to get the updated associations
+          // This will trigger the main useEffect to re-evaluate the step
+          await fetchCurrentUserDetails(); 
+          toast({
+            title: "College Linked!",
+            description: "Your account is now associated with the college.",
+            variant: "success",
+          });
+        } else {
+          const errorData = await response.json().catch(() => ({ message: "Unknown error" }));
+          toast({
+            title: "Failed to Link College",
+            description: `Error: ${errorData.message || response.statusText}`,
+            variant: "destructive",
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error during college setup:", error);
+      toast({
+        title: "Network Error",
+        description: "Could not complete college setup. Please check your connection.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
-    
-    setIsLoading(false);
-    navigate(userType === 'admin' ? '/admin' : '/dashboard');
   };
 
-  const sampleColleges = [
-    { id: "MIT-001", name: "MIT Chennai", cafeterias: 4 },
-    { id: "IIT-002", name: "IIT Delhi", cafeterias: 6 },
-    { id: "NIT-003", name: "NIT Trichy", cafeterias: 3 },
-    { id: "VIT-004", name: "VIT Vellore", cafeterias: 5 }
-  ];
+  // Handle Cafeteria Setup (Step 2 for Admin & Cafeteria Owner)
+  const handleCafeteriaSubmit = async () => {
+    setIsLoading(true);
+    let targetCafeteriaId = cafeteriaIdInput;
+    let cafeteriaToAssociate: Cafeteria | undefined;
 
-  // Mock cafeterias based on selected college
-  const getCafeteriasForCollege = (collegeId: string) => {
-    const cafeterias = {
-      "MIT-001": [
-        { id: "CAFE-MIT-A1", name: "Main Campus Café", location: "Academic Block A", timings: "7:00 AM - 9:00 PM", specialty: "South Indian" },
-        { id: "CAFE-MIT-B2", name: "Food Court", location: "Student Center", timings: "8:00 AM - 10:00 PM", specialty: "Multi-cuisine" },
-        { id: "CAFE-MIT-C3", name: "Quick Bites", location: "Library Block", timings: "9:00 AM - 8:00 PM", specialty: "Snacks & Beverages" },
-        { id: "CAFE-MIT-D4", name: "Hostel Mess", location: "Hostel Complex", timings: "6:30 AM - 9:30 PM", specialty: "Home-style meals" }
-      ],
-      "IIT-002": [
-        { id: "CAFE-IIT-A1", name: "Central Cafeteria", location: "Main Building", timings: "7:00 AM - 10:00 PM", specialty: "North Indian" },
-        { id: "CAFE-IIT-B2", name: "Tech Hub Café", location: "Engineering Block", timings: "8:00 AM - 9:00 PM", specialty: "Continental" },
-        { id: "CAFE-IIT-C3", name: "24/7 Canteen", location: "Hostel Area", timings: "24 Hours", specialty: "All-day dining" }
-      ]
-    };
-    return cafeterias[collegeId as keyof typeof cafeterias] || [];
+    try {
+      if (currentUserRoleType === 'admin' && newCafeteriaName && newCafeteriaLocation) {
+        // ADMIN can create new cafeteria
+        if (!user?.collegeId) { // Check collegeId from DTO
+          toast({
+            title: "Missing College",
+            description: "Please ensure a college is set up for this admin.",
+            variant: "destructive",
+          });
+          setIsLoading(false);
+          return;
+        }
+        const response = await fetch(`${API_BASE_URL}/cafeterias`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': getAuthHeader(),
+          },
+          body: JSON.stringify({ 
+            name: newCafeteriaName, 
+            location: newCafeteriaLocation, 
+            isOpen: newCafeteriaIsOpen,
+            collegeId: user.collegeId // Pass collegeId from DTO
+          }),
+        });
+
+        if (response.ok) {
+          cafeteriaToAssociate = await response.json();
+          targetCafeteriaId = cafeteriaToAssociate.cafeteriaId;
+          toast({
+            title: "Cafeteria Created!",
+            description: `${cafeteriaToAssociate.name} has been added.`,
+            variant: "success",
+          });
+        } else {
+          const errorData = await response.json().catch(() => ({ message: "Unknown error" }));
+          toast({
+            title: "Failed to Create Cafeteria",
+            description: `Error: ${errorData.message || response.statusText}`,
+            variant: "destructive",
+          });
+          setIsLoading(false);
+          return;
+        }
+      } else if (cafeteriaIdInput) {
+        // All roles (including ADMIN if not creating new) can select existing cafeteria
+        const selected = existingCafeterias.find(c => c.cafeteriaId === cafeteriaIdInput);
+        if (!selected) {
+          toast({
+            title: "Invalid Cafeteria ID",
+            description: "Please enter a valid existing cafeteria ID or select from the list.",
+            variant: "destructive",
+          });
+          setIsLoading(false);
+          return;
+        }
+        cafeteriaToAssociate = selected;
+        targetCafeteriaId = cafeteriaToAssociate.cafeteriaId;
+      } else {
+        toast({
+          title: "Missing Information",
+          description: "Please select a cafeteria or provide details to create a new one (Admin only).",
+          variant: "warning",
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      // Link user to the selected/created cafeteria
+      if (user && targetCafeteriaId) {
+        const response = await fetch(`${API_BASE_URL}/users/${user.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': getAuthHeader(),
+          },
+          body: JSON.stringify({ cafeteria: { cafeteriaId: targetCafeteriaId } }),
+        });
+
+        if (response.ok) {
+          // After a successful PUT, refetch the user's details to get the updated associations
+          await fetchCurrentUserDetails(); 
+          toast({
+            title: "Cafeteria Linked!",
+            description: "Your account is now associated with the cafeteria.",
+            variant: "success",
+          });
+          // Redirect based on role after successful cafeteria association (handled by useEffect)
+        } else {
+          const errorData = await response.json().catch(() => ({ message: "Unknown error" }));
+          toast({
+            title: "Failed to Link Cafeteria",
+            description: `Error: ${errorData.message || response.statusText}`,
+            variant: "destructive",
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error during cafeteria setup:", error);
+      toast({
+        title: "Network Error",
+        description: "Could not complete cafeteria setup. Please check your connection.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
+  // Handle Student Cafeteria Selection (Step 2 for Student)
+  const handleStudentCafeteriaSelect = async () => {
+    if (!selectedCafeteria) {
+      toast({
+        title: "Selection Required",
+        description: "Please select a cafeteria to continue.",
+        variant: "warning",
+      });
+      return;
+    }
+    setIsLoading(true);
+    try {
+      if (user) {
+        const response = await fetch(`${API_BASE_URL}/users/${user.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': getAuthHeader(),
+          },
+          body: JSON.stringify({ cafeteria: { cafeteriaId: selectedCafeteria.cafeteriaId } }),
+        });
+
+        if (response.ok) {
+          // After a successful PUT, refetch the user's details to get the updated associations
+          await fetchCurrentUserDetails(); 
+          toast({
+            title: "Cafeteria Selected!",
+            description: "You can now start ordering.",
+            variant: "success",
+          });
+          // The navigation will be handled by the main useEffect after user state updates
+        } else {
+          const errorData = await response.json().catch(() => ({ message: "Unknown error" }));
+          toast({
+            title: "Failed to Select Cafeteria",
+            description: `Error: ${errorData.message || response.statusText}`,
+            variant: "destructive",
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error during student cafeteria selection:", error);
+      toast({
+        title: "Network Error",
+        description: "Could not complete cafeteria selection. Please check your connection.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Placeholder for "Request Credentials" button
+  const handleRequestCredentials = () => {
+    toast({
+      title: "Credentials Request Sent",
+      description: "In a real application, this would notify a Super Admin to provide cafeteria login credentials to this Cafeteria Owner.",
+      variant: "info",
+    });
+    // In a real application, this would trigger a backend API call
+    // e.g., POST /api/admin/request-cafeteria-credentials (protected for ADMIN)
+  };
+
+  // --- Render Logic based on Step and User Type ---
+
+  // Step 1: College Setup (for all roles)
   if (step === 1) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-primary-glow/10 flex items-center justify-center p-4">
@@ -131,50 +592,105 @@ export default function Onboarding() {
               Welcome to Grab A Bite! 🍽️
             </CardTitle>
             <p className="text-muted-foreground text-sm">
-              {userType === 'admin' ? 'Admin Setup - Enter your college details' : 'Let\'s find your college first'}
+              {currentUserRoleType === 'admin' ? 'Admin Setup - Set up your college' : 'Let\'s find your college first'}
             </p>
           </CardHeader>
 
           <CardContent className="space-y-6">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="collegeId" className="flex items-center gap-2">
-                  <Building2 className="h-4 w-4" />
-                  College Unique ID
-                </Label>
-                <Input
-                  id="collegeId"
-                  value={collegeId}
-                  onChange={(e) => setCollegeId(e.target.value)}
-                  placeholder="Enter your college ID (e.g., MIT-001)"
-                  className="h-12"
-                />
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {sampleColleges.map((college) => (
-                    <Badge
-                      key={college.id}
-                      variant="outline"
-                      className="cursor-pointer hover:bg-primary/10 text-xs"
-                      onClick={() => setCollegeId(college.id)}
-                    >
-                      {college.id} ({college.cafeterias} cafés)
-                    </Badge>
-                  ))}
+            {/* Create New College Section (Only for Super Admin) */}
+            {currentUserRoleType === 'admin' && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <PlusCircle className="h-4 w-4 text-primary" /> Create New College
+                </h3>
+                <div className="space-y-2">
+                  <Label htmlFor="newCollegeName">College Name</Label>
+                  <Input 
+                    id="newCollegeName" 
+                    placeholder="e.g., IIT Delhi" 
+                    value={newCollegeName} 
+                    onChange={(e) => setNewCollegeName(e.target.value)} 
+                    disabled={isLoading}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="newCollegeAddress">Address</Label>
+                  <Input 
+                    id="newCollegeAddress" 
+                    placeholder="e.g., Hauz Khas, New Delhi" 
+                    value={newCollegeAddress} 
+                    onChange={(e) => setNewCollegeAddress(e.target.value)} 
+                    disabled={isLoading}
+                  />
                 </div>
               </div>
+            )}
 
-
-              <Button
-                onClick={handleCollegeSubmit}
-                className="w-full h-12 mt-6"
-                disabled={!collegeId}
-                variant="food"
+            {(currentUserRoleType === 'admin' && (newCollegeName || newCollegeAddress)) && ( // Show OR if admin is creating new
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-muted-foreground">
+                  OR
+                </span>
+              </div>
+            )}
+            {/* Always render Select, disable if loading or no colleges */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <Search className="h-4 w-4 text-primary" /> Select Existing College
+              </h3>
+              <Select 
+                onValueChange={setCollegeIdInput} 
+                value={collegeIdInput} 
+                disabled={isFetchingColleges || existingColleges.length === 0}
               >
-                Continue
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
+                <SelectTrigger className="w-full">
+                  <SelectValue 
+                    placeholder={isFetchingColleges 
+                      ? "Loading colleges..." 
+                      : (existingColleges.length > 0 ? "Select a college" : "No colleges available")
+                    } 
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {existingColleges.map((college) => (
+                    <SelectItem key={college.collegeId} value={college.collegeId}>
+                      {college.collegeName} ({college.address})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {existingColleges.length === 0 && !isFetchingColleges && (
+                <p className="text-muted-foreground text-sm mt-2">
+                  No existing colleges found. {currentUserRoleType !== 'admin' && 'Please contact your administrator to create one.'}
+                </p>
+              )}
+              <div className="flex flex-wrap gap-1 mt-2">
+                {existingColleges.map((college) => (
+                  <Badge
+                    key={college.collegeId}
+                    variant="outline"
+                    className="cursor-pointer hover:bg-primary/10 text-xs"
+                    onClick={() => setCollegeIdInput(college.collegeId)}
+                  >
+                    {college.collegeId.substring(0, 8)}... ({college.collegeName})
+                  </Badge>
+                ))}
+              </div>
             </div>
 
+            <Button
+              onClick={handleCollegeSubmit}
+              className="w-full h-12 mt-6"
+              disabled={isLoading || 
+                        (currentUserRoleType === 'admin' && (!collegeIdInput && (!newCollegeName || !newCollegeAddress))) ||
+                        (currentUserRoleType !== 'admin' && !collegeIdInput)
+                       }
+              variant="food"
+            >
+              {isLoading ? "Processing..." : "Continue"}
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+            
             <div className="text-center">
               <p className="text-xs text-muted-foreground">
                 Don't know your IDs? Contact your college administration
@@ -186,377 +702,237 @@ export default function Onboarding() {
     );
   }
 
-  // Admin Step 2: Cafeteria Login
-  if (userType === 'admin' && step === 2) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-primary-glow/10 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md mx-auto shadow-elegant border-primary/20">
-          <CardHeader className="text-center space-y-2">
-            <div className="mx-auto w-16 h-16 bg-gradient-primary rounded-2xl flex items-center justify-center mb-2">
-              <Coffee className="h-8 w-8 text-white" />
-            </div>
-            <CardTitle className="text-2xl font-bold">Cafeteria Login</CardTitle>
-            <p className="text-muted-foreground text-sm">
-              Enter your cafeteria credentials provided by the platform
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="cafeId" className="flex items-center gap-2">
-                  <Coffee className="h-4 w-4" />
-                  Cafeteria ID
-                </Label>
-                <Input
-                  id="cafeId"
-                  value={cafeteriaId}
-                  onChange={(e) => setCafeteriaId(e.target.value)}
-                  placeholder="CAFE-MIT-001"
-                  className="h-12"
-                />
+  // Step 2: Cafeteria Setup (Admin & Cafeteria Owner) OR Cafeteria Selection (Student)
+  if (step === 2) {
+    if (currentUserRoleType === 'admin' || currentUserRoleType === 'cafeteria_owner') {
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-primary-glow/10 flex items-center justify-center p-4">
+          <Card className="w-full max-w-md mx-auto shadow-elegant border-primary/20">
+            <CardHeader className="text-center space-y-2">
+              <div className="mx-auto w-16 h-16 bg-gradient-primary rounded-2xl flex items-center justify-center mb-2">
+                <Coffee className="h-8 w-8 text-white" />
               </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="username" className="flex items-center gap-2">
-                  <Users className="h-4 w-4" />
-                  Username
-                </Label>
-                <Input
-                  id="username"
-                  value={adminData.username || ""}
-                  onChange={(e) => updateAdminData('username', e.target.value)}
-                  placeholder="Your cafeteria username"
-                  className="h-12"
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="password" className="flex items-center gap-2">
-                  <CreditCard className="h-4 w-4" />
-                  Password
-                </Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={adminData.password || ""}
-                  onChange={(e) => updateAdminData('password', e.target.value)}
-                  placeholder="Your cafeteria password"
-                  className="h-12"
-                />
-              </div>
-            </div>
-            
-            <p className="text-xs text-muted-foreground text-center">
-              These credentials were provided when you registered your cafeteria
-            </p>
-            
-            <div className="flex gap-3">
-              <Button variant="outline" onClick={() => setStep(1)} className="flex-1">
-                Back
-              </Button>
-              <Button 
-                onClick={handleAdminStep2Submit}
-                disabled={!cafeteriaId || !adminData.username || !adminData.password}
-                variant="food" 
-                className="flex-1"
-              >
-                Login <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // Admin Step 3: Cafeteria Details
-  if (userType === 'admin' && step === 3) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-primary-glow/10 flex items-center justify-center p-4">
-        <Card className="w-full max-w-lg mx-auto shadow-elegant border-primary/20">
-          <CardHeader className="text-center space-y-2">
-            <div className="mx-auto w-16 h-16 bg-gradient-primary rounded-2xl flex items-center justify-center mb-2">
-              <Building2 className="h-8 w-8 text-white" />
-            </div>
-            <CardTitle className="text-2xl font-bold">Cafeteria Details</CardTitle>
-            <p className="text-muted-foreground text-sm">
-              Tell us about your cafeteria
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="cafeName">Cafeteria Name</Label>
-                <Input
-                  id="cafeName"
-                  value={adminData.cafeName}
-                  onChange={(e) => updateAdminData('cafeName', e.target.value)}
-                  placeholder="Main Campus Cafe"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="location">Location</Label>
-                <Input
-                  id="location"
-                  value={adminData.location}
-                  onChange={(e) => updateAdminData('location', e.target.value)}
-                  placeholder="Academic Block A, Ground Floor"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Contact Phone</Label>
-                  <Input
-                    id="phone"
-                    value={adminData.contactPhone}
-                    onChange={(e) => updateAdminData('contactPhone', e.target.value)}
-                    placeholder="+91 98765 43210"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="capacity">Seating Capacity</Label>
-                  <Input
-                    id="capacity"
-                    value={adminData.capacity}
-                    onChange={(e) => updateAdminData('capacity', e.target.value)}
-                    placeholder="50"
-                    type="number"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Contact Email</Label>
-                <Input
-                  id="email"
-                  value={adminData.contactEmail}
-                  onChange={(e) => updateAdminData('contactEmail', e.target.value)}
-                  placeholder="cafe@college.edu"
-                  type="email"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  value={adminData.description}
-                  onChange={(e) => updateAdminData('description', e.target.value)}
-                  placeholder="Brief description of your cafeteria..."
-                  rows={3}
-                />
-              </div>
-            </div>
-            <div className="flex gap-3 pt-2">
-              <Button variant="outline" onClick={() => setStep(2)} className="flex-1">
-                Back
-              </Button>
-              <Button 
-                onClick={handleAdminStep3Submit}
-                disabled={!adminData.cafeName || !adminData.location}
-                variant="food" 
-                className="flex-1"
-              >
-                Continue <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // Admin Step 4: Operating Hours & Final Setup
-  if (userType === 'admin' && step === 4) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-primary-glow/10 flex items-center justify-center p-4">
-        <Card className="w-full max-w-lg mx-auto shadow-elegant border-primary/20">
-          <CardHeader className="text-center space-y-2">
-            <div className="mx-auto w-16 h-16 bg-gradient-primary rounded-2xl flex items-center justify-center mb-2">
-              <Clock className="h-8 w-8 text-white" />
-            </div>
-            <CardTitle className="text-2xl font-bold">Operating Hours & Settings</CardTitle>
-            <p className="text-muted-foreground text-sm">
-              Configure your cafeteria operations
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="space-y-1">
-                  <Label className="text-sm font-medium">24/7 Operations</Label>
-                  <p className="text-xs text-muted-foreground">Open all day, every day</p>
-                </div>
-                <Switch
-                  checked={adminData.operatingHours.isOpen24x7}
-                  onCheckedChange={(checked) => updateOperatingHours('isOpen24x7', checked)}
-                />
-              </div>
-
-              {!adminData.operatingHours.isOpen24x7 && (
-                <div className="grid grid-cols-2 gap-4">
+              <CardTitle className="text-2xl font-bold">
+                {currentUserRoleType === 'admin' ? 'Admin Setup: Cafeteria Details' : 'Cafeteria Owner Setup: Link Cafeteria'}
+              </CardTitle>
+              <CardDescription className="text-base">
+                {currentUserRoleType === 'admin' 
+                  ? `Next, let's set up the cafeteria this admin will manage for ${user?.collegeName || 'your college'}.` // Use collegeName from DTO
+                  : `Link your Cafeteria Owner account to an existing cafeteria at ${user?.collegeName || 'your college'}.` // Use collegeName from DTO
+                }
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Create New Cafeteria Section (Only for Super Admin) */}
+              {currentUserRoleType === 'admin' && (
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold flex items-center gap-2">
+                    <PlusCircle className="h-4 w-4 text-primary" /> Create New Cafeteria
+                  </h3>
                   <div className="space-y-2">
-                    <Label htmlFor="openTime">Opening Time</Label>
-                    <Input
-                      id="openTime"
-                      type="time"
-                      value={adminData.operatingHours.openTime}
-                      onChange={(e) => updateOperatingHours('openTime', e.target.value)}
+                    <Label htmlFor="newCafeteriaName">Cafeteria Name</Label>
+                    <Input 
+                      id="newCafeteriaName" 
+                      placeholder="e.g., Main Campus Cafe" 
+                      value={newCafeteriaName} 
+                      onChange={(e) => setNewCafeteriaName(e.target.value)} 
+                      disabled={isLoading}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="closeTime">Closing Time</Label>
-                    <Input
-                      id="closeTime"
-                      type="time"
-                      value={adminData.operatingHours.closeTime}
-                      onChange={(e) => updateOperatingHours('closeTime', e.target.value)}
+                    <Label htmlFor="newCafeteriaLocation">Location</Label>
+                    <Input 
+                      id="newCafeteriaLocation" 
+                      placeholder="e.g., Ground Floor, Student Union" 
+                      value={newCafeteriaLocation} 
+                      onChange={(e) => setNewCafeteriaLocation(e.target.value)} 
+                      disabled={isLoading}
                     />
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Switch 
+                      id="newCafeteriaIsOpen" 
+                      checked={newCafeteriaIsOpen} 
+                      onCheckedChange={(checked) => setNewCafeteriaIsOpen(checked)} 
+                      disabled={isLoading}
+                    />
+                    <Label htmlFor="newCafeteriaIsOpen">Is Open</Label>
                   </div>
                 </div>
               )}
 
-              <div className="space-y-2">
-                <Label htmlFor="cuisine">Cuisine Type</Label>
-                <Select value={adminData.cuisine} onValueChange={(value) => updateAdminData('cuisine', value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select cuisine type" />
+              {(currentUserRoleType === 'admin' && (newCafeteriaName || newCafeteriaLocation)) && ( // Show OR if admin is creating new
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">
+                    OR
+                  </span>
+                </div>
+              )}
+              {/* Always render Select, disable if loading or no cafeterias */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <Search className="h-4 w-4 text-primary" /> Select Existing Cafeteria
+                </h3>
+                <Select 
+                  onValueChange={setCafeteriaIdInput} 
+                  value={cafeteriaIdInput}
+                  disabled={isFetchingCafeterias || existingCafeterias.length === 0}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue 
+                      placeholder={isFetchingCafeterias 
+                        ? "Loading cafeterias..." 
+                        : (existingCafeterias.length > 0 ? "Select a cafeteria" : "No cafeterias available")
+                      } 
+                    />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="indian">Indian</SelectItem>
-                    <SelectItem value="south-indian">South Indian</SelectItem>
-                    <SelectItem value="north-indian">North Indian</SelectItem>
-                    <SelectItem value="multi-cuisine">Multi-cuisine</SelectItem>
-                    <SelectItem value="continental">Continental</SelectItem>
-                    <SelectItem value="fast-food">Fast Food</SelectItem>
-                    <SelectItem value="snacks">Snacks & Beverages</SelectItem>
+                    {existingCafeterias.map((cafeteria) => (
+                      <SelectItem key={cafeteria.cafeteriaId} value={cafeteria.cafeteriaId}>
+                        {cafeteria.name} ({cafeteria.location})
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="prepTime">Average Preparation Time (minutes)</Label>
-                <Input
-                  id="prepTime"
-                  type="number"
-                  value={adminData.preparationTime}
-                  onChange={(e) => updateAdminData('preparationTime', e.target.value)}
-                  placeholder="15"
-                />
-              </div>
-
-              <div className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="space-y-1">
-                  <Label className="text-sm font-medium">Accept Online Payments</Label>
-                  <p className="text-xs text-muted-foreground">Enable Razorpay integration</p>
-                </div>
-                <Switch
-                  checked={adminData.acceptsOnlinePayments}
-                  onCheckedChange={(checked) => updateAdminData('acceptsOnlinePayments', checked)}
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-3 pt-4">
-              <Button variant="outline" onClick={() => setStep(3)} className="flex-1">
-                Back
-              </Button>
-              <Button 
-                onClick={handleFinalSubmit}
-                disabled={isLoading}
-                variant="food" 
-                className="flex-1"
-              >
-                {isLoading ? (
-                  "Creating Dashboard..."
-                ) : (
-                  <>
-                    Complete Setup <ArrowRight className="ml-2 h-4 w-4" />
-                  </>
+                {existingCafeterias.length === 0 && !isFetchingCafeterias && (
+                  <p className="text-muted-foreground text-sm mt-2">
+                    No existing cafeterias found for {user?.collegeName || 'your college'}. {currentUserRoleType !== 'admin' && 'Please contact your administrator to create one.'}
+                  </p>
                 )}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {existingCafeterias.map((cafeteria) => (
+                    <Badge
+                      key={cafeteria.cafeteriaId}
+                      variant="outline"
+                      className="cursor-pointer hover:bg-primary/10 text-xs"
+                      onClick={() => setCafeteriaIdInput(cafeteria.cafeteriaId)}
+                    >
+                      {cafeteria.cafeteriaId.substring(0, 8)}... ({cafeteria.name})
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <Button variant="outline" onClick={() => setStep(1)} className="flex-1">
+                  Back
+                </Button>
+                <Button 
+                  onClick={handleCafeteriaSubmit}
+                  disabled={isLoading || 
+                            (currentUserRoleType === 'admin' && (!cafeteriaIdInput && (!newCafeteriaName || !newCafeteriaLocation))) ||
+                            (currentUserRoleType !== 'admin' && !cafeteriaIdInput)
+                           }
+                  variant="food" 
+                  className="flex-1"
+                >
+                  {isLoading ? "Processing..." : "Complete Setup"}
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </div>
+
+              {/* "Request Credentials" Button (Only for Cafeteria Owner) */}
+              {currentUserRoleType === 'cafeteria_owner' && (
+                <div className="text-center mt-4">
+                  <Button variant="link" onClick={handleRequestCredentials} disabled={isLoading}>
+                    Request Cafeteria Credentials
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      );
+    } else { // Student Cafeteria Selection
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-primary-glow/10 flex items-center justify-center p-4">
+          <Card className="w-full max-w-2xl mx-auto shadow-elegant border-primary/20">
+            <CardHeader className="text-center space-y-2">
+              <div className="mx-auto w-16 h-16 bg-gradient-primary rounded-2xl flex items-center justify-center mb-2">
+                <Coffee className="h-8 w-8 text-white" />
+              </div>
+              <CardTitle className="text-2xl font-bold">Choose Your Cafeteria</CardTitle>
+              <p className="text-muted-foreground text-sm">
+                Select a cafeteria from {user?.collegeName || 'your college'}
+              </p>
+            </CardHeader>
+
+            <CardContent className="space-y-6">
+              <div className="grid gap-4">
+                {isFetchingCafeterias ? (
+                  <p className="text-muted-foreground text-center">Loading cafeterias...</p>
+                ) : existingCafeterias.length > 0 ? (
+                  existingCafeterias.map((cafe) => (
+                    <Card 
+                      key={cafe.cafeteriaId} 
+                      className={`cursor-pointer transition-all hover:shadow-md border-2 ${
+                        selectedCafeteria?.cafeteriaId === cafe.cafeteriaId 
+                          ? 'border-primary bg-primary/5' 
+                          : 'border-border hover:border-primary/50'
+                      }`}
+                      onClick={() => setSelectedCafeteria(cafe)}
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between">
+                          <div className="space-y-2">
+                            <h3 className="font-semibold text-foreground">{cafe.name}</h3>
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <MapPin className="h-4 w-4" />
+                              {cafe.location}
+                            </div>
+                            <div className="flex gap-2 text-xs text-muted-foreground">
+                              <Badge variant="outline" className="text-xs">
+                                {cafe.isOpen ? 'Open' : 'Closed'}
+                              </Badge>
+                              <Badge variant="secondary" className="text-xs">
+                                ID: {cafe.cafeteriaId.substring(0, 8)}...
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))
+                ) : (
+                  <p className="text-muted-foreground text-center">No cafeterias found for your college.</p>
+                )}
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setStep(1)}
+                  className="flex-1"
+                >
+                  Back
+                </Button>
+                <Button
+                  onClick={handleStudentCafeteriaSelect}
+                  disabled={!selectedCafeteria || isLoading}
+                  variant="food"
+                  className="flex-1"
+                >
+                  {isLoading ? (
+                    "Setting up..."
+                  ) : (
+                    <>
+                      Start Ordering
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
   }
 
-  // Step 2: Student Cafeteria Selection
-  const availableCafeterias = getCafeteriasForCollege(collegeId);
-
+  // Fallback if step is out of bounds (shouldn't happen with correct flow)
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-primary-glow/10 flex items-center justify-center p-4">
-      <Card className="w-full max-w-2xl mx-auto shadow-elegant border-primary/20">
-        <CardHeader className="text-center space-y-2">
-          <div className="mx-auto w-16 h-16 bg-gradient-primary rounded-2xl flex items-center justify-center mb-2">
-            <Coffee className="h-8 w-8 text-white" />
-          </div>
-          <CardTitle className="text-2xl font-bold">Choose Your Cafeteria</CardTitle>
-          <p className="text-muted-foreground text-sm">
-            Select a cafeteria from {sampleColleges.find(c => c.id === collegeId)?.name}
-          </p>
-        </CardHeader>
-
-        <CardContent className="space-y-6">
-          <div className="grid gap-4">
-            {availableCafeterias.map((cafe) => (
-              <Card 
-                key={cafe.id} 
-                className={`cursor-pointer transition-all hover:shadow-md border-2 ${
-                  selectedCafe?.id === cafe.id 
-                    ? 'border-primary bg-primary/5' 
-                    : 'border-border hover:border-primary/50'
-                }`}
-                onClick={() => handleCafeSelect(cafe)}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-2">
-                      <h3 className="font-semibold text-foreground">{cafe.name}</h3>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <MapPin className="h-4 w-4" />
-                        {cafe.location}
-                      </div>
-                      <div className="flex gap-2">
-                        <Badge variant="outline" className="text-xs">
-                          {cafe.timings}
-                        </Badge>
-                        <Badge variant="secondary" className="text-xs">
-                          {cafe.specialty}
-                        </Badge>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          <div className="flex gap-3">
-            <Button
-              variant="outline"
-              onClick={() => setStep(1)}
-              className="flex-1"
-            >
-              Back
-            </Button>
-            <Button
-              onClick={handleFinalSubmit}
-              disabled={!selectedCafe || isLoading}
-              variant="food"
-              className="flex-1"
-            >
-              {isLoading ? (
-                "Setting up..."
-              ) : (
-                <>
-                  Start Ordering
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </>
-              )}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+    <div className="min-h-screen flex items-center justify-center">
+      <p className="text-muted-foreground">Loading...</p>
     </div>
   );
 }
